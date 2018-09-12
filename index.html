@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>Gamedev Canvas Workshop</title>
+    <style>
+        * {
+            padding: 0;
+            margin: 0;
+        }
+
+        canvas {
+            background: #eee;
+            display: block;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+
+<body>
+
+    <canvas id="myCanvas" width="500" height="300"></canvas>
+
+    <script>
+
+        const canvas = document.querySelector('#myCanvas');
+        const ctx = canvas.getContext("2d");
+
+        let x = canvas.width / 2,
+            y = canvas.height - 30,
+            // ball 
+            dx = 2,
+            dy = -2,
+            ballRadius = 10,
+            //paddle
+            paddleHeight = 10,
+            rightPressed = false,
+            leftPressed = false,
+            // bricks 
+            brickRowCount = 5,
+            brickColumnCount = 3,
+            brickPadding = 10,
+            brickWidth = (canvas.width - 7 * brickPadding - 60) / 5,
+            paddleWidth = (canvas.width - brickPadding - 60) / 5,
+            paddleX = (canvas.width - paddleWidth) / 2,
+            brickHeight = 20,
+            brickOffsetTop = 30,
+            brickOffsetLeft = 30,
+
+            score = 0;
+
+        // build class for geometrical design
+        class Rect {
+            constructor(x, y, w, h, fillStyle) {
+                this.x = x;
+                this.y = y;
+                this.w = w;
+                this.h = h;
+                this.fillStyle = fillStyle;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.rect(this.x, this.y, this.w, this.h);
+                ctx.fillStyle = this.fillStyle;
+                ctx.fill();
+                ctx.closePath();
+            }
+        }
+
+        class Circle {
+            constructor(x, y, radius, startAngle, endAngle, optinalAntiClockwise, fillStyle) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.startAngle = startAngle;
+                this.endAngle = endAngle;
+                this.optinalAntiClockwise = optinalAntiClockwise || false;
+                this.fillStyle = fillStyle;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, this.startAngle, this.endAngle, this.optinalAntiClockwise);
+                ctx.fillStyle = this.fillStyle;
+                ctx.fill();
+                ctx.closePath();
+            }
+        }
+
+        class Font {
+            constructor(font, fillStyle, fillText, x, y) {
+                this.font = font;
+                this.fillStyle = fillStyle;
+                this.fillText = fillText;
+                this.x = x;
+                this.y = y;
+            }
+
+            draw() {
+                ctx.font = this.font;
+                ctx.fillStyle = this.fillStyle;
+                ctx.fillText(this.fillText, this.x, this.y);
+            }
+        }
+
+        // draw scoreBoard
+        class Board {
+
+            constructor() {
+                this.score = 0;
+            }
+
+            updateScore(value) {
+                this.score += value;
+            }
+        }
+
+        // build enemies
+        class Brick {
+
+            constructor() {
+                this.bricks = [];
+                this.brickColumnCount = 3;
+                this.brickRowCount = 5;
+                this.brickWidth = 75;
+                this.brickHeight = 10;
+                this.brickPadding = 10;
+                this.brickOffsetTop = 30
+                this.brickOffsetLeft = 30;
+                this.fillStyle = "#0095DD";
+
+                this.generateBricks();
+            }
+
+            // generate bricks
+            generateBricks() {
+                for (var c = 0; c < this.brickColumnCount; c++) {
+                    this.bricks[c] = [];
+                    for (var r = 0; r < this.brickRowCount; r++) {
+                        this.bricks[c][r] = { x: 0, y: 0, status: 1 };
+                    }
+                }
+                return this.bricks
+            }
+
+            // draw bricks on board
+            drawBricks() {
+                for (var c = 0; c < this.brickColumnCount; c++) {
+                    for (var r = 0; r < brickRowCount; r++) {
+                        if (this.bricks[c][r].status == 1) {
+                            const brickX = (r * (this.brickWidth + this.brickPadding)) + this.brickOffsetLeft;
+                            const brickY = (c * (this.brickHeight + this.brickPadding)) + this.brickOffsetTop;
+                            this.bricks[c][r].x = brickX;
+                            this.bricks[c][r].y = brickY;
+                            ctx.beginPath();
+                            ctx.rect(brickX, brickY, this.brickWidth, this.brickHeight);
+                            ctx.fillStyle = this.fillStyle;
+                            ctx.fill();
+                            ctx.closePath();
+                        }
+                    }
+                }
+            }
+        }
+
+
+        class Player {
+            // has paddle in it and controls
+        }
+
+        class Game {
+
+            constructor() {
+                //init game
+                this.board = new Board();
+                this.brick = new Brick();
+                this.player = new Player();
+            }
+
+            draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                this.collisionDetection();
+
+                this.playerscore = new Font("16px Arial", "#0095DD", `Score: ${this.board.score}`, 8, 20).draw();
+                this.circle = new Circle(x, y, ballRadius, 0, Math.PI * 2, false, "#0095DD").draw();
+                this.playerPaddle = new Rect(paddleX, (canvas.height - paddleHeight), paddleWidth, paddleHeight, "#0095DD").draw();
+                this.brick.drawBricks();
+
+                if (x + dx > canvas.width - ballRadius || x + dx < ballRadius) {
+                    dx = -dx;
+                }
+                if (y + dy < ballRadius) {
+                    dy = -dy;
+                }
+                else if (y + dy > canvas.height - ballRadius) {
+                    if (x > paddleX && x < paddleX + paddleWidth) {
+                        dy = -dy;
+                    }
+                    else {
+                        alert("GAME OVER");
+                        document.location.reload();
+                    }
+                }
+
+                // control movement
+                if (rightPressed && paddleX < canvas.width - paddleWidth) {
+                    paddleX += 7;
+                }
+                else if (leftPressed && paddleX > 0) {
+                    paddleX -= 7;
+                }
+
+                x += dx;
+                y += dy;
+            }
+
+
+            collisionDetection() {
+                for (var c = 0; c < this.brick.brickColumnCount; c++) {
+                    for (var r = 0; r < this.brick.brickRowCount; r++) {
+                        var b = this.brick.bricks[c][r];
+                        if (b.status == 1) {
+                            if (x > b.x && x < b.x + this.brick.brickWidth && y > b.y && y < b.y + this.brick.brickHeight) {
+                                dy = -dy;
+                                b.status = 0;
+                                this.board.updateScore(1);
+                                if (this.board.score == this.brick.brickRowCount * this.brick.brickColumnCount) {
+                                    alert.log("YOU WIN, CONGRATS!");
+                                    document.location.reload();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            init() {
+                setInterval(this.draw.bind(this), 5);
+            }
+
+        }
+
+        // add eventlisteners for controlls
+        document.addEventListener("keydown", keyDownHandler, false);
+        document.addEventListener("keyup", keyUpHandler, false);
+
+        function keyDownHandler(e) {
+            if (e.keyCode == 39) {
+                rightPressed = true;
+            }
+            else if (e.keyCode == 37) {
+                leftPressed = true;
+            }
+        }
+
+        function keyUpHandler(e) {
+            if (e.keyCode == 39) {
+                rightPressed = false;
+            }
+            else if (e.keyCode == 37) {
+                leftPressed = false;
+            }
+        }
+
+        new Game().init();
+
+        
+
+    </script>
+
+</body>
+
+</html>
